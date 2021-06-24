@@ -49,86 +49,107 @@ function test_handle_post(){
 				var_dump($uploaded);
         }
     }
+} //end handle post
 
-
-}
-
+//add shortcode - call render_adw_csv
 add_shortcode( 'adw_csv', 'render_adw_csv' );
 
+// cycles through csv to display stations in table format
 function render_adw_csv(){
+
+  // open buffer to store output
+  // all echo output goes through buffer
 	ob_start();
 
+  // H1 Header
 	echo "<h1>A Daily Walk Station List</h1>";
 
+  // get hardcoded csv file
+  // Todo: get uploaded file
 	$file = get_attached_file('6784');
 
-     if (file_exists($file)) {
+    if (file_exists($file)) {
 		 //echo "The file $file exists. <br><br>";
      } else {
        echo "The file $filename does not exist.<br><br>";
      }
 
-	$f = fopen($file, "r");
+     // open csv file as $f
+     $f = fopen($file, "r");
 
     $country = "";
     $state = "";
-	$new_country = false;
-	$first_round = true;
+    $new_country = false;
+    $first_round = true;
 
 	while (($line = fgetcsv($f)) !== false) {
 
-// 		// Print Country Heading
-        if ( $country !== $line[0]) {
-			if (!$first_round) {
-				echo "</tbody></table></figure>";
- 		} else { $first_round = false; }
+    if ( $country !== $line[0]) {
+
+      if (!$first_round) {
+        echo "</tbody></table></figure>";
+      } else { $first_round = false; }
+
+
   		$new_country = true;
 			$country = $line[0];
-			echo "<br><br>";
-			echo "<h2>", $country, "</h2>";
- 			echo "<figure class=\"wp-block-table\">
-			<table style=\"width: 100%\">
-	   		<colgroup>
+
+      echo "<br><br>";
+
+      // Print Country Heading
+    	echo "<h2>", $country, "</h2>";
+
+      // Print open table tags
+      echo "<figure class=\"wp-block-table\">
+          <table style=\"width: 100%\"><colgroup>
        		<col span=\"1\" style=\"width: 50%;\">
        		<col span=\"1\" style=\"width: 25%;\">
        		<col span=\"1\" style=\"width: 25%;\">
-   	   		</colgroup><tbody>";
-		}
+   	      </colgroup><tbody>";
+		} //end if country
 
 
-        // Print State Heading
-        if ( $state !== $line[1]) {
-// 			// End Table
+    if ( $state !== $line[1]) {
+ 			// End Previous Table
  			echo "</tbody></table></figure>";
 
  			$state = $line[1];
- 			echo "<h3>", $state, "</h3>";
-// 			// Start Table
+
+      // Print State Heading
+    	echo "<h3>", $state, "</h3>";
+
+      // Print open table tags
  			echo "<figure class=\"wp-block-table\">
-			<table style=\"width: 100%\">
-	   		<colgroup>
+          <table style=\"width: 100%\"><colgroup>
        		<col span=\"1\" style=\"width: 50%;\">
        		<col span=\"1\" style=\"width: 25%;\">
        		<col span=\"1\" style=\"width: 25%;\">
-   	   		</colgroup><tbody>";
-        }
+   	      </colgroup><tbody>";
+    } // end if state
 
-       echo "<tr>";
+    echo "<tr>";
 
-       // Table Data
-       echo "<td>" . $line[2] . "</td>";
-       echo "<td>" . $line[3] . "</td>";
-       echo "<td>" . $line[4] . "</td>";
+    // Table Data
+    echo "<td>" . $line[2] . "</td>";
+    echo "<td>" . $line[3] . "</td>";
+    echo "<td>" . $line[4] . "</td>";
 
-       echo "</tr>";
+    echo "</tr>";
 
-     }
+  }
 
-
+  // Print last table closing tags
 	echo "</tr></tbody></table></figure><br><br>";
-	$output_string = ob_get_contents();
-    ob_end_clean();
 
-	fclose($f);
+  // get all buffered output, store it to string
+	$output_string = ob_get_contents();
+
+  // clean buffer
+  ob_end_clean();
+
+  // close csv file
+ 	fclose($f);
+
+  // return output
 	return $output_string;
 }
