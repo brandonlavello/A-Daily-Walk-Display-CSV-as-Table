@@ -3,7 +3,7 @@
  * Plugin Name: Display CSV ADW Radio Stations
  * Plugin URI: https://brandonlavello.com
  * Description: Display csv radio station content using a shortcode to insert in a page or post
- * Version: 1.0
+ * Version: 1.1
  * Text Domain: csv-adw-radio-station-plugin
  * Author: Brandon Lavello
  * Author URI: https://brandonlavello.com
@@ -43,10 +43,10 @@ function test_handle_post(){
         // Error checking using WP functions
         if(is_wp_error($uploaded)){
             echo "Error uploading file: " . $uploaded->get_error_message();
-        }else{
-            echo "File upload successful!";
-				echo "<h1>" . $uploaded . "</h1>";
-				var_dump($uploaded);
+        } else {
+          echo "File upload successful!";
+          echo "<h1>" . $uploaded . "</h1>";
+          var_dump($uploaded);
         }
     }
 } //end handle post
@@ -69,86 +69,85 @@ function render_adw_csv(){
 	$file = get_attached_file('6784');
 
     if (file_exists($file)) {
-		 //echo "The file $file exists. <br><br>";
+      //Uncomment for development
+      //echo "The file $file exists. <br><br>";
+      // open csv file as $f
+      $f = fopen($file, "r");
+
+      $country = "";
+      $state = "";
+      $new_country = false;
+      $first_round = true;
+
+      while (($line = fgetcsv($f)) !== false) {
+
+        // Handle new Country
+         if ( $country !== $line[0]) {
+
+           if (!$first_round) {
+             echo "</tbody></table></figure>";
+           } else { $first_round = false; }
+
+           $new_country = true;
+           $country = $line[0];
+
+           echo "<br><br>";
+
+           // Print Country Heading
+           echo "<h2>", $country, "</h2>";
+
+           // Print open table tags
+           echo "<figure class=\"wp-block-table\">
+               <table style=\"width: 100%\"><colgroup>
+               <col span=\"1\" style=\"width: 50%;\">
+               <col span=\"1\" style=\"width: 25%;\">
+               <col span=\"1\" style=\"width: 25%;\">
+               </colgroup><tbody>";
+         } //end if country
+
+         // Handle new State
+         if ( $state !== $line[1]) {
+           // End Previous Table
+           echo "</tbody></table></figure>";
+
+           $state = $line[1];
+
+           // Print State Heading
+           echo "<h3>", $state, "</h3>";
+
+           // Print open table tags
+           echo "<figure class=\"wp-block-table\">
+               <table style=\"width: 100%\"><colgroup>
+               <col span=\"1\" style=\"width: 50%;\">
+               <col span=\"1\" style=\"width: 25%;\">
+               <col span=\"1\" style=\"width: 25%;\">
+               </colgroup><tbody>";
+         } // end if state
+
+         echo "<tr>";
+
+         // Table Data
+         echo "<td>" . $line[2] . "</td>";
+         echo "<td>" . $line[3] . "</td>";
+         echo "<td>" . $line[4] . "</td>";
+         echo "</tr>";
+       } // end while
+
+       // Print last table closing tags
+       echo "</tr></tbody></table></figure><br><br>";
+
+       // get all buffered output, store it to string
+       $output_string = ob_get_contents();
+
+       // clean buffer
+       ob_end_clean();
+
+       // close csv file
+       fclose($f);
+
      } else {
        echo "The file $filename does not exist.<br><br>";
      }
-
-     // open csv file as $f
-     $f = fopen($file, "r");
-
-    $country = "";
-    $state = "";
-    $new_country = false;
-    $first_round = true;
-
-	while (($line = fgetcsv($f)) !== false) {
-
-    if ( $country !== $line[0]) {
-
-      if (!$first_round) {
-        echo "</tbody></table></figure>";
-      } else { $first_round = false; }
-
-
-  		$new_country = true;
-			$country = $line[0];
-
-      echo "<br><br>";
-
-      // Print Country Heading
-    	echo "<h2>", $country, "</h2>";
-
-      // Print open table tags
-      echo "<figure class=\"wp-block-table\">
-          <table style=\"width: 100%\"><colgroup>
-       		<col span=\"1\" style=\"width: 50%;\">
-       		<col span=\"1\" style=\"width: 25%;\">
-       		<col span=\"1\" style=\"width: 25%;\">
-   	      </colgroup><tbody>";
-		} //end if country
-
-
-    if ( $state !== $line[1]) {
- 			// End Previous Table
- 			echo "</tbody></table></figure>";
-
- 			$state = $line[1];
-
-      // Print State Heading
-    	echo "<h3>", $state, "</h3>";
-
-      // Print open table tags
- 			echo "<figure class=\"wp-block-table\">
-          <table style=\"width: 100%\"><colgroup>
-       		<col span=\"1\" style=\"width: 50%;\">
-       		<col span=\"1\" style=\"width: 25%;\">
-       		<col span=\"1\" style=\"width: 25%;\">
-   	      </colgroup><tbody>";
-    } // end if state
-
-    echo "<tr>";
-
-    // Table Data
-    echo "<td>" . $line[2] . "</td>";
-    echo "<td>" . $line[3] . "</td>";
-    echo "<td>" . $line[4] . "</td>";
-
-    echo "</tr>";
-
-  }
-
-  // Print last table closing tags
-	echo "</tr></tbody></table></figure><br><br>";
-
-  // get all buffered output, store it to string
-	$output_string = ob_get_contents();
-
-  // clean buffer
-  ob_end_clean();
-
-  // close csv file
- 	fclose($f);
 
   // return output
 	return $output_string;
