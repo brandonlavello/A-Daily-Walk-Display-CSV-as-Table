@@ -3,7 +3,7 @@
  * Plugin Name: Display CSV ADW Radio Stations
  * Plugin URI: https://brandonlavello.com
  * Description: Display csv radio station content using a shortcode to insert in a page or post
- * Version: 1.1
+ * Version: 1.2
  * Text Domain: csv-adw-radio-station-plugin
  * Author: Brandon Lavello
  * Author URI: https://brandonlavello.com
@@ -45,8 +45,14 @@ function test_handle_post(){
             echo "Error uploading file: " . $uploaded->get_error_message();
         } else {
           echo "File upload successful!";
-          echo "<h1>" . $uploaded . "</h1>";
-          var_dump($uploaded);
+          update_option('adw_csv_id', serialize($uploaded));
+          /**
+  				* echo "<h1>" . $uploaded . "</h1>";
+  				* var_dump($uploaded);
+          * $file_id = get_option('adw_csv_id', null);
+          * if ($file_id !==  null) { $file_id = unserialize($file_id); }
+          * echo "<h1>" . $file_id . "</h1>";
+          */
         }
     }
 } //end handle post
@@ -56,17 +62,24 @@ add_shortcode( 'adw_csv', 'render_adw_csv' );
 
 // cycles through csv to display stations in table format
 function render_adw_csv(){
-
+  $output_string = "";
   // open buffer to store output
   // all echo output goes through buffer
 	ob_start();
 
   // H1 Header
-	echo "<h1>A Daily Walk Station List</h1>";
+  echo "<h1>A Daily Walk Station List</h1>";
+
+  $plugin_path_str = plugin_dir_path(__FILE__);
+  //echo "<p>Plugin Path: " . $plugin_path_str . "</p>";
 
   // get hardcoded csv file
   // Todo: get uploaded file
-	$file = get_attached_file('6784');
+  $file_id = get_option('adw_csv_id', null);
+  if ($file_id !==  null) { $file_id = unserialize($file_id); }
+  $file = get_attached_file($file_id);
+  # $file = get_attached_file('6784');
+
 
     if (file_exists($file)) {
       //Uncomment for development
@@ -146,7 +159,7 @@ function render_adw_csv(){
        fclose($f);
 
      } else {
-       echo "The file $filename does not exist.<br><br>";
+       echo "The file $file does not exist.<br><br>";
      }
 
   // return output
