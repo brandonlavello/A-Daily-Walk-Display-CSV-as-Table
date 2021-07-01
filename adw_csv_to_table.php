@@ -3,7 +3,7 @@
  * Plugin Name: Display CSV ADW Radio Stations
  * Plugin URI: https://brandonlavello.com
  * Description: Display csv radio station content using a shortcode to insert in a page or post
- * Version: 1.2
+ * Version: 1.25
  * Text Domain: csv-adw-radio-station-plugin
  * Author: Brandon Lavello
  * Author URI: https://brandonlavello.com
@@ -11,35 +11,35 @@
  */
 
 
-add_action('admin_menu', 'test_plugin_setup_menu');
+add_action('admin_menu', 'adw_plugin_setup_menu');
 
-function test_plugin_setup_menu(){
-    add_menu_page( 'ADW Radio CSV Plugin Page', 'ADW Radio CSV Plugin', 'manage_options', 'test-plugin', 'test_init' );
+function adw_plugin_setup_menu(){
+    add_menu_page( 'ADW Radio CSV Plugin Page', 'ADW Radio CSV Plugin', 'manage_options', 'adw-display-csv-plugin', 'form_init');
 }
 
-function test_init(){
-    test_handle_post();
+function form_init(){
+    csv_handle_post();
 
 ?>
     <h1>A Daily Walk</h1>
     <h2>Upload a File</h2>
     <!-- Form to handle the upload - The enctype value here is very important -->
     <form  method="post" enctype="multipart/form-data">
-        <input type='file' id='test_upload_pdf' name='test_upload_pdf'></input>
+        <input type='file' id='csv_upload' name='csv_upload'></input>
         <?php submit_button('Upload') ?>
     </form>
 <?php
 }
 
-function test_handle_post(){
+function csv_handle_post(){
     // First check if the file appears on the _FILES array
-    if(isset($_FILES['test_upload_pdf'])){
-        $pdf = $_FILES['test_upload_pdf'];
+    if(isset($_FILES['csv_upload'])){
+        $pdf = $_FILES['csv_upload'];
 
         // Use the wordpress function to upload
         // test_upload_pdf corresponds to the position in the $_FILES array
         // 0 means the content is not associated with any other posts
-        $uploaded=media_handle_upload('test_upload_pdf', 0);
+        $uploaded=media_handle_upload('csv_upload', 0);
         // Error checking using WP functions
         if(is_wp_error($uploaded)){
             echo "Error uploading file: " . $uploaded->get_error_message();
