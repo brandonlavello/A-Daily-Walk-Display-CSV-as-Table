@@ -2,166 +2,227 @@
 /**
  * Plugin Name: Display CSV ADW Radio Stations
  * Plugin URI: https://brandonlavello.com
- * Description: Display csv radio station content using a shortcode to insert in a page or post
- * Version: 1.25
- * Text Domain: csv-adw-radio-station-plugin
+ * Description: Display csv radio station content using a shortcode and admin UI
+ * Version: 2.6
  * Author: Brandon Lavello
- * Author URI: https://brandonlavello.com
  * License: GNU GPLv3
  */
 
-
-add_action('admin_menu', 'adw_plugin_setup_menu');
-
-function adw_plugin_setup_menu(){
-    add_menu_page( 'ADW Radio CSV Plugin Page', 'ADW Radio CSV Plugin', 'manage_options', 'adw-display-csv-plugin', 'form_init');
+// --- Register Custom Post Type ---
+add_action('init', 'adw_register_radio_station_cpt');
+function adw_register_radio_station_cpt() {
+    register_post_type('radio_station', [
+        'labels' => [
+            'name' => 'Radio Stations',
+            'singular_name' => 'Radio Station',
+            'add_new' => 'Add New',
+            'add_new_item' => 'Add New Radio Station',
+            'edit_item' => 'Edit Radio Station',
+            'new_item' => 'New Radio Station',
+            'view_item' => 'View Radio Station',
+            'search_items' => 'Search Radio Stations',
+            'not_found' => 'No radio stations found',
+        ],
+        'public' => false,
+        'show_ui' => true,
+        'menu_icon' => 'dashicons-microphone',
+        'supports' => ['title'],
+    ]);
 }
 
-function form_init(){
-    csv_handle_post();
+// --- Meta Box ---
+add_action('add_meta_boxes', 'adw_add_radio_station_meta_box');
+add_action('save_post', 'adw_save_radio_station_meta');
 
-?>
-    <h1>A Daily Walk</h1>
-    <h2>Upload a File</h2>
-    <!-- Form to handle the upload - The enctype value here is very important -->
-    <form  method="post" enctype="multipart/form-data">
-        <input type='file' id='csv_upload' name='csv_upload'></input>
-        <?php submit_button('Upload') ?>
-    </form>
-<?php
+function adw_add_radio_station_meta_box() {
+    add_meta_box(
+        'adw_radio_station_meta',
+        'Station Details',
+        'adw_render_radio_station_meta_box',
+        'radio_station',
+        'normal',
+        'high'
+    );
 }
 
-function csv_handle_post(){
-    // First check if the file appears on the _FILES array
-    if(isset($_FILES['csv_upload'])){
-        $pdf = $_FILES['csv_upload'];
+function adw_render_radio_station_meta_box($post) {
+    $fields = ['country', 'state', 'city', 'station_name', 'frequency'];
+    foreach ($fields as $field) {
+        $value = get_post_meta($post->ID, $field, true);
+        echo "<p><label for='$field'>" . ucfirst(str_replace('_', ' ', $field)) . ":</label><br />";
+        echo "<input type='text' name='$field' id='$field' value='" . esc_attr($value) . "' style='width:100%' /></p>";
+    }
+}
 
-        // Use the wordpress function to upload
-        // test_upload_pdf corresponds to the position in the $_FILES array
-        // 0 means the content is not associated with any other posts
-        $uploaded=media_handle_upload('csv_upload', 0);
-        // Error checking using WP functions
-        if(is_wp_error($uploaded)){
-            echo "Error uploading file: " . $uploaded->get_error_message();
-        } else {
-          echo "File upload successful!";
-          update_option('adw_csv_id', serialize($uploaded));
-          /**
-  				* echo "<h1>" . $uploaded . "</h1>";
-  				* var_dump($uploaded);
-          * $file_id = get_option('adw_csv_id', null);
-          * if ($file_id !==  null) { $file_id = unserialize($file_id); }
-          * echo "<h1>" . $file_id . "</h1>";
-          */
+function adw_save_radio_station_meta($post_id) {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    $fields = ['country', 'state', 'city', 'station_name', 'frequency'];
+    foreach ($fields as $field) {
+        if (isset($_POST[$field])) {
+            update_post_meta($post_id, $field, sanitize_text_field($_POST[$field]));
         }
     }
-} //end handle post
+}
 
-//add shortcode - call render_adw_csv
-add_shortcode( 'adw_csv', 'render_adw_csv' );
+// --- Admin Filters ---
+add_action('restrict_manage_posts', 'adw_filter_radio_station_admin');
+function adw_filter_radio_station_admin(){
+    global $typenow;
+    if ($typenow !== 'radio_station') return;
 
-// cycles through csv to display stations in table format
+    foreach (['country', 'state'] as $key) {
+        $selected = $_GET[$key] ?? '';
+        $values = adw_get_unique_meta_values($key);
+
+        echo "<select name='$key'><option value=''>All " . ucfirst($key) . "s</option>";
+        foreach ($values as $val) {
+            $val_esc = esc_attr($val);
+            $selected_attr = selected($selected, $val, false);
+            echo "<option value='$val_esc' $selected_attr>$val</option>";
+        }
+        echo "</select>";
+    }
+}
+
+add_filter('parse_query', 'adw_filter_radio_station_query');
+function adw_filter_radio_station_query($query){
+    global $pagenow;
+    if (is_admin() && $pagenow === 'edit.php' && $query->query['post_type'] === 'radio_station') {
+        foreach (['country', 'state'] as $key) {
+            if (!empty($_GET[$key])) {
+                $query->query_vars['meta_query'][] = [
+                    'key' => $key,
+                    'value' => sanitize_text_field($_GET[$key]),
+                    'compare' => '='
+                ];
+            }
+        }
+    }
+}
+
+function adw_get_unique_meta_values($meta_key) {
+    global $wpdb;
+    $results = $wpdb->get_col( $wpdb->prepare("
+        SELECT DISTINCT meta_value
+        FROM $wpdb->postmeta
+        WHERE meta_key = %s
+        ORDER BY meta_value ASC
+    ", $meta_key) );
+    return array_filter($results);
+}
+
+// --- CSV Upload Page ---
+add_action('admin_menu', 'adw_plugin_setup_menu');
+function adw_plugin_setup_menu(){
+    add_menu_page('Upload Radio Stations CSV', 'Upload Station CSV', 'manage_options', 'adw-upload-csv', 'adw_csv_upload_page');
+}
+
+function adw_csv_upload_page(){
+    adw_handle_csv_upload();
+    adw_handle_delete_all();
+    echo '<h1>Upload a CSV of Radio Stations</h1>';
+    echo '<p>This tool allows you to import a list of radio stations from a CSV file. The file must follow this format with 5 columns: <strong>Country, State, City, Frequency, Station</strong>.</p>';
+    echo '<p>Each row represents one radio station. Uploading a new CSV will add those stations to the list. Existing stations will not be overwritten or removed unless deleted.</p>';
+    echo '<form method="post" enctype="multipart/form-data">';
+    echo '<input type="file" name="csv_upload">';
+    submit_button('Upload');
+    echo '</form>';
+    echo '<hr><h2>Danger Zone</h2>';
+    echo '<form method="post">';
+    echo '<input type="hidden" name="delete_all_stations" value="1">';
+    submit_button('Delete All Radio Stations', 'delete');
+    echo '</form>';
+}
+
+function adw_handle_csv_upload(){
+    if (!empty($_FILES['csv_upload']['tmp_name'])) {
+        $file = $_FILES['csv_upload']['tmp_name'];
+        adw_import_csv_to_posts($file);
+        echo '<div class="notice notice-success is-dismissible"><p>CSV Imported!</p></div>';
+    }
+}
+
+function adw_handle_delete_all(){
+    if (isset($_POST['delete_all_stations']) && current_user_can('manage_options')) {
+        $posts = get_posts(['post_type' => 'radio_station', 'numberposts' => -1]);
+        foreach ($posts as $post) {
+            wp_delete_post($post->ID, true);
+        }
+        echo '<div class="notice notice-warning is-dismissible"><p>All radio stations deleted.</p></div>';
+    }
+}
+
+function adw_import_csv_to_posts($csv_path) {
+    if (!file_exists($csv_path)) return;
+    $f = fopen($csv_path, 'r');
+    while (($line = fgetcsv($f)) !== false) {
+        if (count($line) < 5) continue;
+        wp_insert_post([
+            'post_type' => 'radio_station',
+            'post_title' => $line[2],
+            'post_status' => 'publish',
+            'meta_input' => [
+                'country'       => $line[0],
+                'state'         => $line[1],
+                'city'          => $line[2],
+                'frequency'     => $line[3],
+                'station_name'  => $line[4]
+            ]
+        ]);
+    }
+    fclose($f);
+}
+
+// --- Shortcode ---
+add_shortcode('adw_csv', 'render_adw_csv');
 function render_adw_csv(){
-  $output_string = "";
-  // open buffer to store output
-  // all echo output goes through buffer
-	ob_start();
+    $output = '';
+    $args = ['post_type' => 'radio_station', 'posts_per_page' => -1];
+    $stations = get_posts($args);
+    $grouped = [];
 
-  // H1 Header
-  echo "<h1>A Daily Walk Station List</h1>";
+    foreach ($stations as $station) {
+        $country = get_post_meta($station->ID, 'country', true);
+        $state = get_post_meta($station->ID, 'state', true);
+        $city = get_post_meta($station->ID, 'city', true);
+        if (!$city) $city = $station->post_title;
+        $frequency = get_post_meta($station->ID, 'frequency', true);
+        $station_name = get_post_meta($station->ID, 'station_name', true);
 
-  $plugin_path_str = plugin_dir_path(__FILE__);
-  //echo "<p>Plugin Path: " . $plugin_path_str . "</p>";
+        $grouped[$country][$state][] = [
+            'city' => $city,
+            'frequency' => $frequency,
+            'station' => $station_name
+        ];
+    }
 
-  // get hardcoded csv file
-  // Todo: get uploaded file
-  $file_id = get_option('adw_csv_id', null);
-  if ($file_id !==  null) { $file_id = unserialize($file_id); }
-  $file = get_attached_file($file_id);
-  # $file = get_attached_file('6784');
+    uksort($grouped, function($a, $b) {
+        if ($a === 'United States Of America') return -1;
+        if ($b === 'United States Of America') return 1;
+        return strcmp($a, $b);
+    });
 
+    foreach ($grouped as $country => &$states) {
+        ksort($states);
+        foreach ($states as &$stations) {
+            usort($stations, fn($a, $b) => strcmp($a['city'], $b['city']));
+        }
+    }
 
-    if (file_exists($file)) {
-      //Uncomment for development
-      //echo "The file $file exists. <br><br>";
-      // open csv file as $f
-      $f = fopen($file, "r");
+    foreach ($grouped as $country => $states) {
+        $output .= "<h2>$country</h2>";
+        foreach ($states as $state => $station_rows) {
+            $output .= "<h3>$state</h3><figure class=\"wp-block-table\">
+                        <table style=\"width: 100%\">
+                        <colgroup><col width='50%'><col width='25%'><col width='25%'></colgroup>
+                        <thead><tr><th>City</th><th>Frequency</th><th>Station</th></tr></thead>
+                        <tbody>";
+            foreach ($station_rows as $row) {
+                $output .= "<tr><td>{$row['city']}</td><td>{$row['frequency']}</td><td>{$row['station']}</td></tr>";
+            }
+            $output .= "</tbody></table></figure>";
+        }
+    }
 
-      $country = "";
-      $state = "";
-      $new_country = false;
-      $first_round = true;
-
-      while (($line = fgetcsv($f)) !== false) {
-
-        // Handle new Country
-         if ( $country !== $line[0]) {
-
-           if (!$first_round) {
-             echo "</tbody></table></figure>";
-           } else { $first_round = false; }
-
-           $new_country = true;
-           $country = $line[0];
-
-           echo "<br><br>";
-
-           // Print Country Heading
-           echo "<h2>", $country, "</h2>";
-
-           // Print open table tags
-           echo "<figure class=\"wp-block-table\">
-               <table style=\"width: 100%\"><colgroup>
-               <col span=\"1\" style=\"width: 50%;\">
-               <col span=\"1\" style=\"width: 25%;\">
-               <col span=\"1\" style=\"width: 25%;\">
-               </colgroup><tbody>";
-         } //end if country
-
-         // Handle new State
-         if ( $state !== $line[1]) {
-           // End Previous Table
-           echo "</tbody></table></figure>";
-
-           $state = $line[1];
-
-           // Print State Heading
-           echo "<h3>", $state, "</h3>";
-
-           // Print open table tags
-           echo "<figure class=\"wp-block-table\">
-               <table style=\"width: 100%\"><colgroup>
-               <col span=\"1\" style=\"width: 50%;\">
-               <col span=\"1\" style=\"width: 25%;\">
-               <col span=\"1\" style=\"width: 25%;\">
-               </colgroup><tbody>";
-         } // end if state
-
-         echo "<tr>";
-
-         // Table Data
-         echo "<td>" . $line[2] . "</td>";
-         echo "<td>" . $line[3] . "</td>";
-         echo "<td>" . $line[4] . "</td>";
-         echo "</tr>";
-       } // end while
-
-       // Print last table closing tags
-       echo "</tr></tbody></table></figure><br><br>";
-
-       // get all buffered output, store it to string
-       $output_string = ob_get_contents();
-
-       // clean buffer
-       ob_end_clean();
-
-       // close csv file
-       fclose($f);
-
-     } else {
-       echo "The file $file does not exist.<br><br>";
-     }
-
-  // return output
-	return $output_string;
+    return $output;
 }
