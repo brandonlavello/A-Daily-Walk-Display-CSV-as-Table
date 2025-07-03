@@ -3,7 +3,7 @@
  * Plugin Name: Display CSV ADW Radio Stations
  * Plugin URI: https://brandonlavello.com
  * Description: Display csv radio station content using a shortcode and admin UI
- * Version: 2.6
+ * Version: 2.7
  * Author: Brandon Lavello
  * License: GNU GPLv3
  */
@@ -61,6 +61,22 @@ function adw_save_radio_station_meta($post_id) {
         if (isset($_POST[$field])) {
             update_post_meta($post_id, $field, sanitize_text_field($_POST[$field]));
         }
+    }
+}
+
+// --- Admin Columns ---
+add_filter('manage_radio_station_posts_columns', 'adw_add_admin_columns');
+function adw_add_admin_columns($columns) {
+    $columns['state'] = 'State';
+    $columns['country'] = 'Country';
+    $columns['frequency'] = 'Frequency';
+    return $columns;
+}
+
+add_action('manage_radio_station_posts_custom_column', 'adw_render_admin_columns', 10, 2);
+function adw_render_admin_columns($column, $post_id) {
+    if (in_array($column, ['state', 'country', 'frequency'])) {
+        echo esc_html(get_post_meta($post_id, $column, true));
     }
 }
 
